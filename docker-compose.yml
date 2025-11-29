@@ -1,8 +1,20 @@
+version: "3.8"
+
 services:
-  web:
-    build: .
+  chunk-upload:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-    command: pm2-runtime start dist/index.js --name chunk-upload -i max --max-memory-restart 500M
+      - PORT=3000
+    volumes:
+      - uploads:/app/uploads
+      - logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  logs:

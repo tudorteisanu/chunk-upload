@@ -1,0 +1,15 @@
+node_modules
+npm - debug.log
+  .git
+  .gitignore
+README.md
+  .vscode
+  .idea
+  *.log
+    .DS_Store
+    .env
+uploads
+logs
+src
+tsconfig.json
+demo.html

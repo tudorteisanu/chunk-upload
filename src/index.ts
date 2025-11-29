@@ -23,6 +23,11 @@ const uploads = new Map<string, {
 
 app.use(cors({ origin: '*' }));
 
+// Health check endpoint
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Endpoint to receive chunks
 app.post('/upload', upload.single('chunk'), (req: any, res: any) => {
   try {

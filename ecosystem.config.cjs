@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'chunk-upload',
-      script: 'dist/index.js',
+      script: './dist/index.js',
       instances: 'max',
       exec_mode: 'cluster',
       env: {
@@ -14,7 +14,8 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       autorestart: true,
-      max_memory_restart: '1G',
+      max_memory_restart: '500M',
+      watch: false,
     },
   ],
 }
