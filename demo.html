@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chunk Upload Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+
+    .upload-container {
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+    }
+
+    input[type="file"] {
+      margin: 20px 0;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #0056b3;
+    }
+
+    .progress-container {
+      margin-top: 20px;
+    }
+
+    progress {
+      width: 100%;
+      height: 30px;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+
+    .info {
+      color: blue;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Chunk Upload Demo</h1>
+
+  <div class="upload-container">
+    <h2>Upload a File</h2>
+    <input type="file" id="fileInput" />
+    <br>
+    <button id="uploadButton">Upload File</button>
+
+    <div class="progress-container">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <div id="status" class="info">Select a file to upload</div>
+      <div id="details"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import the ChunkUploadService
+    // In a real project, you would import from the built module
+    // import { ChunkUploadService } from './dist/index.js';
+
+    // For this demo, we'll use a mock implementation
+    class ChunkUploadService {
+      constructor(options = {}) {
+        this.chunkSize = options.chunkSize || 1024 * 1024;
+        this.maxRetries = options.maxRetries || 3;
+        this.onProgress = options.onProgress;
+        this.onChunkComplete = options.onChunkComplete;
+        this.onError = options.onError;
+      }
+
+      async uploadFile(file, uploadUrl, uploadId) {
+        const totalChunks = Math.ceil(file.size / this.chunkSize);
+        let uploadedBytes = 0;
+        const currentUploadId = uploadId || `upload-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+
+        try {
+          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * this.chunkSize;
+            const end = Math.min(start + this.chunkSize, file.size);
+            const chunk = file.slice(start, end);
+
+            const metadata = {
+              chunkIndex,
+              totalChunks,
+              fileName: file.name,
+              fileSize: file.size,
+              chunkSize: chunk.size,
+              uploadId: currentUploadId,
+            };
+
+            await this.uploadChunk(chunk, uploadUrl, metadata);
+            uploadedBytes += chunk.size;
+
+            if (this.onProgress) {
+              this.onProgress({
+                uploadedBytes,
+                totalBytes: file.size,
+                percentage: (uploadedBytes / file.size) * 100,
+                currentChunk: chunkIndex + 1,
+                totalChunks,
+              });
+            }
+
+            if (this.onChunkComplete) {
+              this.onChunkComplete(chunkIndex, totalChunks);
+            }
+          }
+
+          return {
+            success: true,
+            uploadId: currentUploadId,
+            message: 'File uploaded successfully',
+          };
+        } catch (error) {
+          return {
+            success: false,
+            uploadId: currentUploadId,
+            message: error.message || 'Upload failed',
+          };
+        }
+      }
+
+      async uploadChunk(chunk, uploadUrl, metadata) {
+        const formData = new FormData();
+        formData.append('chunk', chunk);
+        formData.append('metadata', JSON.stringify(metadata));
+
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed with status ${response.status}`);
+        }
+      }
+    }
+
+    // Setup the demo
+    const fileInput = document.getElementById('fileInput');
+    const uploadButton = document.getElementById('uploadButton');
+    const progressBar = document.getElementById('progressBar');
+    const statusDiv = document.getElementById('status');
+    const detailsDiv = document.getElementById('details');
+
+    uploadButton.addEventListener('click', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) {
+        alert('Please select a file');
+        return;
+      }
+
+      uploadButton.disabled = true;
+      progressBar.value = 0;
+      statusDiv.textContent = 'Starting upload...';
+      statusDiv.className = 'info';
+      detailsDiv.textContent = '';
+
+      const uploadService = new ChunkUploadService({
+        chunkSize: 1024 * 1024, // 1MB
+        onProgress: (progress) => {
+          progressBar.value = progress.percentage;
+          statusDiv.textContent = `Uploading: ${progress.percentage.toFixed(1)}%`;
+          detailsDiv.textContent = `Chunk ${progress.currentChunk}/${progress.totalChunks} - ${(progress.uploadedBytes / 1024 / 1024).toFixed(2)} MB / ${(progress.totalBytes / 1024 / 1024).toFixed(2)} MB`;
+        },
+        onChunkComplete: (chunkIndex, totalChunks) => {
+          console.log(`Chunk ${chunkIndex + 1}/${totalChunks} uploaded`);
+        },
+        onError: (error, chunkIndex) => {
+          console.error(`Error on chunk ${chunkIndex}:`, error);
+        }
+      });
+
+      try {
+        // Replace with your actual upload endpoint
+        const result = await uploadService.uploadFile(file, 'http://localhost:3000/upload');
+
+        if (result.success) {
+          statusDiv.textContent = '✓ Upload completed successfully!';
+          statusDiv.className = 'success';
+          localStorage.setItem('lastUploadId', result.uploadId);
+        } else {
+          statusDiv.textContent = `✗ Upload failed: ${result.message}`;
+          statusDiv.className = 'error';
+        }
+      } catch (error) {
+        statusDiv.textContent = `✗ Error: ${error.message}`;
+        statusDiv.className = 'error';
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+
+    // Show file details when selected
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+        const chunks = Math.ceil(file.size / (1024 * 1024));
+        statusDiv.textContent = `Ready to upload: ${file.name} (${sizeMB} MB, ${chunks} chunks)`;
+        statusDiv.className = 'info';
+      }
+    });
+  </script>
+</body>
+
+</html>
